@@ -13,27 +13,33 @@ public sealed class RestoreBootstrap : MonoBehaviour
     private void CreateWorld()
     {
         Camera camera = CreateCamera();
+
         GameObject layerObject = new GameObject("Dirty Sneaker");
         DirtLayer layer = layerObject.AddComponent<DirtLayer>();
-        layerObject.transform.position = new Vector3(0f, -0.15f, 0f);
-        layerObject.transform.localScale = Vector3.one * 1.42f;
+        layerObject.transform.position = new Vector3(0f, -0.05f, 0f);
+        // Keep the complete sneaker comfortably inside the portrait play area.
+        layerObject.transform.localScale = Vector3.one * 1.08f;
         layer.BuildSneaker();
 
         GameObject managerObject = new GameObject("Restoration Manager");
         RestorationManager manager = managerObject.AddComponent<RestorationManager>();
         manager.Initialise(layer, camera);
+
         TouchInputManager input = managerObject.AddComponent<TouchInputManager>();
         input.Initialise(manager, camera);
-        UIManager.Create(manager);
+
+        // RestoreHUD is the single production HUD. The old prototype UI is no
+        // longer created here, avoiding duplicate canvases and competing layouts.
     }
 
     private Camera CreateCamera()
     {
         GameObject cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
+
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.orthographic = true;
-        camera.orthographicSize = 5.1f;
+        camera.orthographicSize = 5.65f;
         camera.transform.position = new Vector3(0f, 0f, -10f);
         camera.backgroundColor = new Color(0.91f, 0.95f, 0.94f);
         cameraObject.AddComponent<AudioListener>();
