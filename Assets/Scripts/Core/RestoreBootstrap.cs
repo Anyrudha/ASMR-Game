@@ -16,21 +16,25 @@ public sealed class RestoreBootstrap : MonoBehaviour
         GameObject managerObject = new GameObject("Restoration Manager");
         RestorationManager manager = managerObject.AddComponent<RestorationManager>();
 
-        // v0.3 uses the real imported sneaker when the local one-click installer
-        // has generated Assets/Resources/Sneakers/Sneakers.prefab. The old 2D
-        // surface remains as a safe fallback until the local asset is installed.
         GameObject prefab = Resources.Load<GameObject>("Sneakers/Sneakers");
         if (prefab != null)
         {
             GameObject sneaker = Instantiate(prefab);
-            sneaker.name = "Dirty Sneaker 3D";
-            sneaker.transform.position = new Vector3(0f, -0.15f, 0f);
-            sneaker.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
-            sneaker.transform.localScale = Vector3.one * 10f;
+            sneaker.name = "Restoration Sneaker";
+            sneaker.transform.rotation = Quaternion.identity;
+
+            // Normalize the imported OBJ by its actual renderer bounds rather than
+            // relying on an arbitrary OBJ authoring scale.
+            Bounds bounds = CalculateBounds(sneaker);
+            float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
+            if (longest > 0.0001f)
+                sneaker.transform.localScale *= 5.55f / longest;
+
+            bounds = CalculateBounds(sneaker);
+            sneaker.transform.position += new Vector3(-bounds.center.x, -bounds.center.y - 0.05f, -bounds.center.z);
 
             MeshDirtSurface surface = sneaker.GetComponent<MeshDirtSurface>();
             if (surface == null) surface = sneaker.AddComponent<MeshDirtSurface>();
-            surface.Initialise();
             manager.Initialise(surface, camera);
         }
         else
@@ -47,13 +51,22 @@ public sealed class RestoreBootstrap : MonoBehaviour
         input.Initialise(manager, camera);
     }
 
+    private static Bounds CalculateBounds(GameObject root)
+    {
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0) return new Bounds(root.transform.position, Vector3.one);
+        Bounds bounds = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+        return bounds;
+    }
+
     private Camera CreateCamera()
     {
         GameObject cameraObject = new GameObject("Main Camera");
         cameraObject.tag = "MainCamera";
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.orthographic = true;
-        camera.orthographicSize = 2.95f;
+        camera.orthographicSize = 4.15f;
         camera.transform.position = new Vector3(0f, 0f, -10f);
         camera.backgroundColor = new Color(0.91f, 0.95f, 0.94f);
         cameraObject.AddComponent<AudioListener>();
