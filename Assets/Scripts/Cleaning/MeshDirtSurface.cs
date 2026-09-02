@@ -4,7 +4,7 @@ using UnityEngine;
 public sealed class MeshDirtSurface : MonoBehaviour
 {
     [SerializeField] private int maskSize = 512;
-    [SerializeField] private int dirtStampCount = 120;
+    [SerializeField] private int dirtStampCount = 90;
     [SerializeField] private int randomSeed = 2409;
     [SerializeField] private Color dirtColor = new Color(0.20f, 0.13f, 0.08f, 1f);
 
@@ -13,6 +13,7 @@ public sealed class MeshDirtSurface : MonoBehaviour
     private Color32[] pixels;
     private int initialDirty;
     private int remainingDirty;
+    private bool ready;
 
     public float Progress { get; private set; }
     public bool IsFullyClean => Progress >= 0.999f;
@@ -21,7 +22,6 @@ public sealed class MeshDirtSurface : MonoBehaviour
     {
         renderers = GetComponentsInChildren<MeshRenderer>(true);
         if (renderers.Length == 0) return;
-
         foreach (MeshRenderer renderer in renderers)
         {
             MeshFilter filter = renderer.GetComponent<MeshFilter>();
@@ -32,7 +32,6 @@ public sealed class MeshDirtSurface : MonoBehaviour
                 collider.convex = false;
             }
         }
-
         CreateMask();
         foreach (MeshRenderer renderer in renderers)
         {
@@ -41,6 +40,16 @@ public sealed class MeshDirtSurface : MonoBehaviour
             if (m.HasProperty("_DirtColor")) m.SetColor("_DirtColor", dirtColor);
             if (m.HasProperty("_DirtStrength")) m.SetFloat("_DirtStrength", 1f);
         }
+        ready = true;
+    }
+
+    public bool TryGetHit(Camera camera, Vector2 screenPosition, out RaycastHit hit)
+    {
+        hit = default;
+        if (!ready || camera == null) return false;
+        Ray ray = camera.ScreenPointToRay(screenPosition);
+        if (!Physics.Raycast(ray, out hit, 100f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) return false;
+        return hit.collider != null && (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform));
     }
 
     public float CleanAt(Vector2 uv, float radius, float strength)
@@ -50,7 +59,6 @@ public sealed class MeshDirtSurface : MonoBehaviour
         int cy = Mathf.RoundToInt(Mathf.Clamp01(uv.y) * (maskSize - 1));
         int r = Mathf.Max(1, Mathf.RoundToInt(radius * maskSize));
         float removed = 0f;
-
         for (int y = Mathf.Max(0, cy - r); y <= Mathf.Min(maskSize - 1, cy + r); y++)
         for (int x = Mathf.Max(0, cx - r); x <= Mathf.Min(maskSize - 1, cx + r); x++)
         {
@@ -65,7 +73,6 @@ public sealed class MeshDirtSurface : MonoBehaviour
             pixels[i].r = pixels[i].g = pixels[i].b = (byte)next;
             removed += old - next;
         }
-
         if (removed > 0f)
         {
             dirtMask.SetPixels32(pixels);
@@ -82,15 +89,12 @@ public sealed class MeshDirtSurface : MonoBehaviour
         dirtMask.wrapMode = TextureWrapMode.Clamp;
         pixels = new Color32[maskSize * maskSize];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(0, 0, 0, 255);
-
         Random.InitState(randomSeed);
         for (int i = 0; i < dirtStampCount; i++)
         {
-            float u = Random.Range(0.06f, 0.94f);
-            float v = Random.Range(0.06f, 0.94f);
-            Stamp(Mathf.RoundToInt(u * (maskSize - 1)), Mathf.RoundToInt(v * (maskSize - 1)), Random.Range(8, 38), Random.Range(130, 245));
+            float u = Random.Range(0.06f, 0.94f), v = Random.Range(0.06f, 0.94f);
+            Stamp(Mathf.RoundToInt(u * (maskSize - 1)), Mathf.RoundToInt(v * (maskSize - 1)), Random.Range(7, 30), Random.Range(100, 195));
         }
-
         dirtMask.SetPixels32(pixels);
         dirtMask.Apply(false, false);
         RecalculateProgress();
