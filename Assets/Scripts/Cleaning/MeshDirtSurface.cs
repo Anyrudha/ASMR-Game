@@ -1,9 +1,6 @@
 using UnityEngine;
 
-/// <summary>
-/// First 3D restoration surface. Uses the sneaker's UVs and a CPU-editable dirt mask.
-/// The model/texture remain separate from the restoration logic so future objects can reuse it.
-/// </summary>
+/// <summary>Reusable 3D restoration surface driven by mesh UVs and a CPU-editable dirt mask.</summary>
 public sealed class MeshDirtSurface : MonoBehaviour
 {
     [SerializeField] private int maskSize = 512;
@@ -19,20 +16,30 @@ public sealed class MeshDirtSurface : MonoBehaviour
 
     public float Progress { get; private set; }
     public bool IsFullyClean => Progress >= 0.999f;
-    public Texture2D DirtMask => dirtMask;
 
     public void Initialise()
     {
         renderers = GetComponentsInChildren<MeshRenderer>(true);
         if (renderers.Length == 0) return;
 
-        CreateMask();
-        foreach (MeshRenderer r in renderers)
+        foreach (MeshRenderer renderer in renderers)
         {
-            Material m = r.material;
-            m.SetTexture("_DirtMask", dirtMask);
-            m.SetColor("_DirtColor", dirtColor);
-            m.SetFloat("_DirtStrength", 1f);
+            MeshFilter filter = renderer.GetComponent<MeshFilter>();
+            if (filter != null && filter.sharedMesh != null && renderer.GetComponent<MeshCollider>() == null)
+            {
+                MeshCollider collider = renderer.gameObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = filter.sharedMesh;
+                collider.convex = false;
+            }
+        }
+
+        CreateMask();
+        foreach (MeshRenderer renderer in renderers)
+        {
+            Material m = renderer.material;
+            if (m.HasProperty("_DirtMask")) m.SetTexture("_DirtMask", dirtMask);
+            if (m.HasProperty("_DirtColor")) m.SetColor("_DirtColor", dirtColor);
+            if (m.HasProperty("_DirtStrength")) m.SetFloat("_DirtStrength", 1f);
         }
     }
 
@@ -41,13 +48,11 @@ public sealed class MeshDirtSurface : MonoBehaviour
         if (pixels == null) return 0f;
         int cx = Mathf.RoundToInt(Mathf.Clamp01(uv.x) * (maskSize - 1));
         int cy = Mathf.RoundToInt(Mathf.Clamp01(uv.y) * (maskSize - 1));
-        int r = Mathf.Max(1, Mathf.RoundToInt(radius));
+        int r = Mathf.Max(1, Mathf.RoundToInt(radius * maskSize));
         float removed = 0f;
-        int minX = Mathf.Max(0, cx - r), maxX = Mathf.Min(maskSize - 1, cx + r);
-        int minY = Mathf.Max(0, cy - r), maxY = Mathf.Min(maskSize - 1, cy + r);
 
-        for (int y = minY; y <= maxY; y++)
-        for (int x = minX; x <= maxX; x++)
+        for (int y = Mathf.Max(0, cy - r); y <= Mathf.Min(maskSize - 1, cy + r); y++)
+        for (int x = Mathf.Max(0, cx - r); x <= Mathf.Min(maskSize - 1, cx + r); x++)
         {
             float dx = x - cx, dy = y - cy;
             float d = Mathf.Sqrt(dx * dx + dy * dy) / r;
@@ -81,10 +86,9 @@ public sealed class MeshDirtSurface : MonoBehaviour
         Random.InitState(randomSeed);
         for (int i = 0; i < dirtStampCount; i++)
         {
-            float u = Random.Range(0.08f, 0.92f);
-            float v = Random.Range(0.08f, 0.92f);
-            int radius = Random.Range(10, 48);
-            Stamp(Mathf.RoundToInt(u * (maskSize - 1)), Mathf.RoundToInt(v * (maskSize - 1)), radius, Random.Range(130, 245));
+            float u = Random.Range(0.06f, 0.94f);
+            float v = Random.Range(0.06f, 0.94f);
+            Stamp(Mathf.RoundToInt(u * (maskSize - 1)), Mathf.RoundToInt(v * (maskSize - 1)), Random.Range(8, 38), Random.Range(130, 245));
         }
 
         dirtMask.SetPixels32(pixels);
