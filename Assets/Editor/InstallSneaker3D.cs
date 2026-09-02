@@ -15,6 +15,8 @@ public static class InstallSneaker3D
     private const string ShaderName = "Restore/DirtSurface";
     private const string PrefabPath = "Assets/Resources/Sneakers/Sneakers.prefab";
     private const string MaterialPath = "Assets/Resources/Sneakers/SneakerRestoreMaterial.mat";
+    private const int BuildVersion = 3;
+    private const string BuildVersionKey = "Restore.SingleSneakerPrefabVersion";
 
     [InitializeOnLoadMethod]
     private static void AutoBuildOnEditorLoad()
@@ -40,13 +42,13 @@ public static class InstallSneaker3D
             AssetDatabase.LoadAssetAtPath<Texture2D>(TexturePath) == null)
             return;
 
-        // Rebuild once when the imported source is present. The prefab itself is
-        // marked by the presence of MeshDirtSurface after successful processing.
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
-        if (prefab != null && prefab.GetComponent<MeshDirtSurface>() != null)
+        // A versioned migration guarantees that an older pair-prefab is rebuilt
+        // once after this processor changes, without rebuilding on every launch.
+        if (EditorPrefs.GetInt(BuildVersionKey, 0) >= BuildVersion)
             return;
 
         BuildPrefabInternal(false);
+        EditorPrefs.SetInt(BuildVersionKey, BuildVersion);
     }
 
     private static void BuildPrefabInternal(bool showDialog)
@@ -93,9 +95,11 @@ public static class InstallSneaker3D
         instance.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         instance.transform.localScale = Vector3.one;
 
-        // The free CC0 source is a pair. Keep the right-hand shoe and discard
-        // the other shoe before creating the runtime prefab.
+        // The free CC0 source is a pair. Keep one complete shoe.
         KeepSingleShoe(instance);
+
+        // Give the shoe a deliberate three-quarter product angle.
+        instance.transform.rotation = Quaternion.Euler(8f, -26f, 0f);
 
         Bounds bounds = CalculateBounds(instance);
         float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
@@ -114,7 +118,7 @@ public static class InstallSneaker3D
 
         MeshDirtSurface surface = instance.GetComponent<MeshDirtSurface>();
         if (surface == null)
-            surface = instance.AddComponent<MeshDirtSurface>();
+            instance.AddComponent<MeshDirtSurface>();
 
         bool success = PrefabUtility.SaveAsPrefabAsset(instance, PrefabPath, out _);
         Object.DestroyImmediate(instance);
@@ -137,33 +141,20 @@ public static class InstallSneaker3D
             all.Encapsulate(renderers[i].bounds);
 
         float split = all.center.x;
-        float left = 0f;
-        float right = 0f;
         int leftCount = 0;
         int rightCount = 0;
 
         foreach (MeshRenderer renderer in renderers)
         {
             float x = root.transform.InverseTransformPoint(renderer.bounds.center).x;
-            if (x < split)
-            {
-                left += x;
-                leftCount++;
-            }
-            else
-            {
-                right += x;
-                rightCount++;
-            }
+            if (x < split) leftCount++;
+            else rightCount++;
         }
 
         if (leftCount == 0 || rightCount == 0) return;
 
-        // Keep the side with the larger renderer cluster. For this asset both
-        // shoes are equivalent; this also remains safe if the source hierarchy
-        // contains several renderers per shoe.
+        // Keep the larger cluster. The source pair has one cluster per shoe.
         bool keepRight = rightCount >= leftCount;
-
         foreach (MeshRenderer renderer in renderers)
         {
             float x = root.transform.InverseTransformPoint(renderer.bounds.center).x;
