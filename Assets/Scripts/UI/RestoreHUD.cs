@@ -1,49 +1,270 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 public sealed class RestoreHUD : MonoBehaviour
 {
     private RestorationManager manager;
-    private Text progress, instruction, current;
-    private Image fill;
-    private readonly Image[] cards = new Image[5];
-    private readonly Text[] states = new Text[5];
-    private GameObject overlay;
+    private Text progressText;
+    private Text instructionText;
+    private Text toolNameText;
+    private Image progressFill;
+    private readonly Image[] toolCards = new Image[5];
+    private readonly Image[] toolIcons = new Image[5];
+    private readonly Text[] toolLabels = new Text[5];
+    private readonly Text[] toolStates = new Text[5];
+    private GameObject completion;
     private bool built;
-    private static readonly Color Ink = new Color32(35,49,55,255);
-    private static readonly Color Accent = new Color32(42,143,160,255);
+    private float displayedProgress;
+
+    private static readonly Color Ink = new Color32(31, 45, 51, 255);
+    private static readonly Color Muted = new Color32(104, 121, 126, 255);
+    private static readonly Color Accent = new Color32(45, 158, 177, 255);
+    private static readonly Color AccentSoft = new Color32(224, 247, 249, 255);
+    private static readonly Color PanelWhite = new Color(1f, 1f, 1f, .94f);
+    private static readonly string[] Names = { "WATER", "FOAM", "BRUSH", "RINSE", "DRY" };
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void Boot(){ GameObject go=new GameObject("Restore HUD Polish"); go.AddComponent<RestoreHUD>(); }
-    private void Start(){ TryInitialise(); }
-    private void TryInitialise(){ if(built)return; if(manager==null)manager=FindFirstObjectByType<RestorationManager>(); if(manager==null)return; HideLegacyUI(); Build(); built=true; }
-    private void HideLegacyUI(){ GameObject old=GameObject.Find("UI Manager"); if(old==null)return; Canvas c=old.GetComponentInChildren<Canvas>(); if(c!=null)c.gameObject.SetActive(false); }
+    private static void Boot()
+    {
+        GameObject go = new GameObject("Restore HUD");
+        go.AddComponent<RestoreHUD>();
+    }
 
-    private void Build(){
-        GameObject go=new GameObject("HUD Canvas"); go.transform.SetParent(transform,false);
-        Canvas canvas=go.AddComponent<Canvas>(); canvas.renderMode=RenderMode.ScreenSpaceOverlay; canvas.sortingOrder=20;
-        CanvasScaler scaler=go.AddComponent<CanvasScaler>(); scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution=new Vector2(1080,1920); scaler.matchWidthOrHeight=.5f; go.AddComponent<GraphicRaycaster>();
-        Header(go.transform); Instruction(go.transform); Tools(go.transform); Completion(go.transform);
+    private void Start() => TryInitialise();
+
+    private void TryInitialise()
+    {
+        if (built) return;
+        if (manager == null) manager = FindFirstObjectByType<RestorationManager>();
+        if (manager == null) return;
+        HideLegacyUI();
+        Build();
+        built = true;
     }
-    private void Header(Transform p){
-        Image panel=Panel(p,new Vector2(.5f,.91f),new Vector2(900,180),new Color(1,1,1,.91f));
-        progress=Text(panel.transform,"RESTORATION  0%",new Vector2(.5f,.70f),new Vector2(700,42),23,FontStyle.Bold,Ink);
-        Text(panel.transform,"TAKE YOUR TIME",new Vector2(.5f,.45f),new Vector2(500,25),11,FontStyle.Bold,Accent);
-        Image track=Panel(panel.transform,new Vector2(.5f,.18f),new Vector2(780,16),new Color(.78f,.84f,.85f,.8f));
-        fill=Panel(track.transform,new Vector2(.5f,.5f),new Vector2(780,16),Accent); fill.type=Image.Type.Filled; fill.fillMethod=Image.FillMethod.Horizontal; fill.fillOrigin=0; fill.rectTransform.anchorMin=Vector2.zero; fill.rectTransform.anchorMax=Vector2.one; fill.rectTransform.offsetMin=fill.rectTransform.offsetMax=Vector2.zero;
+
+    private void HideLegacyUI()
+    {
+        GameObject old = GameObject.Find("UI Manager");
+        if (old == null) return;
+        Canvas c = old.GetComponentInChildren<Canvas>();
+        if (c != null) c.gameObject.SetActive(false);
     }
-    private void Instruction(Transform p){ Image panel=Panel(p,new Vector2(.5f,.765f),new Vector2(850,76),new Color(.96f,.98f,.98f,.82f)); instruction=Text(panel.transform,"Drag across the muddy areas",new Vector2(.5f,.5f),new Vector2(780,65),18,FontStyle.Normal,Ink); }
-    private void Tools(Transform p){
-        Image dock=Panel(p,new Vector2(.5f,.105f),new Vector2(1000,205),new Color(.055f,.10f,.12f,.94f));
-        Text(dock.transform,"CURRENT TOOL",new Vector2(.5f,.87f),new Vector2(300,24),10,FontStyle.Bold,new Color(1,1,1,.45f));
-        current=Text(dock.transform,"WATER",new Vector2(.5f,.69f),new Vector2(500,32),15,FontStyle.Bold,Color.white);
-        string[] names={"WATER","FOAM","BRUSH","RINSE","AIR DRY"};
-        for(int i=0;i<5;i++){ int n=i; Image card=Panel(dock.transform,new Vector2(.5f,.36f),new Vector2(174,82),new Color(1,1,1,.10f)); card.rectTransform.anchoredPosition=new Vector2(-390+i*195,-5); cards[i]=card; Text(card.transform,names[i],new Vector2(.55f,.60f),new Vector2(130,30),12,FontStyle.Bold,Color.white); states[i]=Text(card.transform,"LOCKED",new Vector2(.55f,.28f),new Vector2(130,22),9,FontStyle.Bold,new Color(1,1,1,.3f)); Button b=card.gameObject.AddComponent<Button>(); b.targetGraphic=card; b.onClick.AddListener(()=>manager.SetTool((CleaningTool)n)); }
+
+    private void Build()
+    {
+        GameObject canvasObject = new GameObject("Restore HUD Canvas");
+        canvasObject.transform.SetParent(transform, false);
+        Canvas canvas = canvasObject.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 20;
+        CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1080, 1920);
+        scaler.matchWidthOrHeight = .5f;
+        canvasObject.AddComponent<GraphicRaycaster>();
+
+        BuildHeader(canvasObject.transform);
+        BuildInstruction(canvasObject.transform);
+        BuildToolDock(canvasObject.transform);
+        BuildCompletion(canvasObject.transform);
     }
-    private void Completion(Transform p){ overlay=new GameObject("Completion"); overlay.transform.SetParent(p,false); RectTransform r=overlay.AddComponent<RectTransform>(); r.anchorMin=Vector2.zero; r.anchorMax=Vector2.one; r.offsetMin=r.offsetMax=Vector2.zero; Image dim=overlay.AddComponent<Image>(); dim.color=new Color(.02f,.07f,.08f,.62f); Image card=Panel(overlay.transform,new Vector2(.5f,.5f),new Vector2(820,500),new Color(.98f,1,1,.98f)); Text(card.transform,"PERFECT RESTORATION",new Vector2(.5f,.60f),new Vector2(720,65),32,FontStyle.Bold,Ink); Text(card.transform,"Take a breath.  You did it.",new Vector2(.5f,.40f),new Vector2(680,60),19,FontStyle.Normal,new Color32(94,110,114,255)); overlay.SetActive(false); }
-    private void Update(){ TryInitialise(); if(!built)return; float p=Mathf.Clamp01(manager.Progress); progress.text="RESTORATION  "+Mathf.RoundToInt(p*100)+"%"; fill.fillAmount=p; current.text=manager.CurrentTool.Label(); instruction.text=GetInstruction(manager.CurrentTool); int stage=Mathf.Clamp(manager.StageIndex,0,4); for(int i=0;i<5;i++){ bool active=i==stage,unlocked=i<=manager.StageIndex; cards[i].color=active?Accent:unlocked?new Color(1,1,1,.15f):new Color(1,1,1,.07f); states[i].text=active?"ACTIVE":unlocked?"READY":"LOCKED"; cards[i].GetComponent<Button>().interactable=unlocked&&!manager.IsComplete; } if(manager.IsComplete&&!overlay.activeSelf)overlay.SetActive(true); }
-    private static string GetInstruction(CleaningTool t){ switch(t){ case CleaningTool.Water:return "Drag across the muddy areas"; case CleaningTool.Foam:return "Spread a soft layer of foam"; case CleaningTool.Brush:return "Slowly scrub until the dirt melts away"; case CleaningTool.Rinse:return "Rinse the surface until it shines"; case CleaningTool.Dryer:return "Gently dry the restored sneaker"; default:return "Restore it at your own pace"; } }
-    public static void ShowCompletion(){}
-    private static Image Panel(Transform p,Vector2 a,Vector2 size,Color c){ GameObject go=new GameObject("Panel"); go.transform.SetParent(p,false); RectTransform r=go.AddComponent<RectTransform>(); r.anchorMin=r.anchorMax=a; r.anchoredPosition=Vector2.zero; r.sizeDelta=size; Image i=go.AddComponent<Image>(); i.color=c; return i; }
-    private static Text Text(Transform p,string v,Vector2 a,Vector2 size,int f,FontStyle s,Color c){ GameObject go=new GameObject("Label"); go.transform.SetParent(p,false); RectTransform r=go.AddComponent<RectTransform>(); r.anchorMin=r.anchorMax=a; r.anchoredPosition=Vector2.zero; r.sizeDelta=size; Text t=go.AddComponent<Text>(); t.text=v; t.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); t.fontSize=f; t.fontStyle=s; t.alignment=TextAnchor.MiddleCenter; t.color=c; t.horizontalOverflow=HorizontalWrapMode.Wrap; t.verticalOverflow=VerticalWrapMode.Overflow; return t; }
+
+    private void BuildHeader(Transform parent)
+    {
+        Image panel = RoundedPanel(parent, new Vector2(.5f, .915f), new Vector2(920, 142), PanelWhite, 24);
+        Text(panel.transform, "RESTORE", new Vector2(.5f, .70f), new Vector2(500, 38), 22, FontStyle.Bold, Ink);
+        progressText = Text(panel.transform, "0%", new Vector2(.84f, .70f), new Vector2(120, 38), 20, FontStyle.Bold, Accent);
+        Text(panel.transform, "TAKE YOUR TIME", new Vector2(.5f, .40f), new Vector2(360, 24), 10, FontStyle.Bold, Muted);
+
+        Image track = RoundedPanel(panel.transform, new Vector2(.5f, .13f), new Vector2(820, 12), new Color32(224, 232, 233, 255), 6);
+        progressFill = RoundedPanel(track.transform, new Vector2(0f, .5f), new Vector2(820, 12), Accent, 6);
+        progressFill.rectTransform.anchorMin = new Vector2(0f, 0f);
+        progressFill.rectTransform.anchorMax = new Vector2(0f, 1f);
+        progressFill.rectTransform.pivot = new Vector2(0f, .5f);
+        progressFill.rectTransform.anchoredPosition = Vector2.zero;
+        progressFill.rectTransform.sizeDelta = new Vector2(0f, 0f);
+        progressFill.type = Image.Type.Filled;
+        progressFill.fillMethod = Image.FillMethod.Horizontal;
+        progressFill.fillOrigin = 0;
+    }
+
+    private void BuildInstruction(Transform parent)
+    {
+        Image panel = RoundedPanel(parent, new Vector2(.5f, .755f), new Vector2(900, 112), new Color(1f, 1f, 1f, .72f), 28);
+        Text(panel.transform, "NOW", new Vector2(.16f, .67f), new Vector2(100, 22), 9, FontStyle.Bold, Muted);
+        toolNameText = Text(panel.transform, "WATER", new Vector2(.30f, .48f), new Vector2(240, 34), 17, FontStyle.Bold, Ink);
+        instructionText = Text(panel.transform, "Drag across the muddy areas", new Vector2(.64f, .48f), new Vector2(500, 54), 15, FontStyle.Normal, Ink);
+    }
+
+    private void BuildToolDock(Transform parent)
+    {
+        Image dock = RoundedPanel(parent, new Vector2(.5f, .115f), new Vector2(1010, 238), new Color32(24, 39, 44, 247), 34);
+        Text(dock.transform, "TOOLS", new Vector2(.5f, .87f), new Vector2(220, 22), 9, FontStyle.Bold, new Color(1, 1, 1, .45f));
+
+        for (int i = 0; i < 5; i++)
+        {
+            int index = i;
+            Image card = RoundedPanel(dock.transform, new Vector2(.5f, .38f), new Vector2(166, 128), new Color(1, 1, 1, .075f), 24);
+            card.rectTransform.anchoredPosition = new Vector2(-400 + i * 200, -2);
+            toolCards[i] = card;
+
+            Image icon = RoundedPanel(card.transform, new Vector2(.5f, .67f), new Vector2(52, 52), new Color(1, 1, 1, .10f), 26);
+            toolIcons[i] = icon;
+            icon.sprite = CreateIconSprite(i);
+            icon.preserveAspect = true;
+
+            toolLabels[i] = Text(card.transform, Names[i], new Vector2(.5f, .30f), new Vector2(150, 25), 10, FontStyle.Bold, Color.white);
+            toolStates[i] = Text(card.transform, "LOCKED", new Vector2(.5f, .10f), new Vector2(150, 20), 8, FontStyle.Bold, new Color(1, 1, 1, .32f));
+
+            Button button = card.gameObject.AddComponent<Button>();
+            button.targetGraphic = card;
+            ColorBlock colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1, 1, 1, 1.12f);
+            colors.pressedColor = new Color(.88f, .96f, .97f, 1f);
+            colors.disabledColor = new Color(1, 1, 1, .55f);
+            button.colors = colors;
+            button.onClick.AddListener(() => manager.SetTool((CleaningTool)index));
+        }
+    }
+
+    private void BuildCompletion(Transform parent)
+    {
+        completion = new GameObject("Completion");
+        completion.transform.SetParent(parent, false);
+        RectTransform root = completion.AddComponent<RectTransform>();
+        root.anchorMin = Vector2.zero;
+        root.anchorMax = Vector2.one;
+        root.offsetMin = root.offsetMax = Vector2.zero;
+
+        Image dim = completion.AddComponent<Image>();
+        dim.color = new Color(.02f, .07f, .08f, .58f);
+
+        Image card = RoundedPanel(completion.transform, new Vector2(.5f, .5f), new Vector2(850, 520), PanelWhite, 40);
+        Text(card.transform, "RESTORED", new Vector2(.5f, .67f), new Vector2(650, 60), 36, FontStyle.Bold, Ink);
+        Text(card.transform, "A little care makes a big difference.", new Vector2(.5f, .48f), new Vector2(700, 50), 18, FontStyle.Normal, Muted);
+        Text(card.transform, "✦   ✦   ✦", new Vector2(.5f, .28f), new Vector2(500, 55), 24, FontStyle.Bold, Accent);
+        completion.SetActive(false);
+    }
+
+    private void Update()
+    {
+        TryInitialise();
+        if (!built) return;
+
+        float target = Mathf.Clamp01(manager.Progress);
+        displayedProgress = Mathf.MoveTowards(displayedProgress, target, Time.deltaTime * .9f);
+        progressText.text = Mathf.RoundToInt(displayedProgress * 100f) + "%";
+        progressFill.fillAmount = displayedProgress;
+        toolNameText.text = manager.CurrentTool.Label();
+        instructionText.text = GetInstruction(manager.CurrentTool);
+
+        int stage = Mathf.Clamp(manager.StageIndex, 0, 4);
+        for (int i = 0; i < 5; i++)
+        {
+            bool active = i == stage;
+            bool unlocked = i <= manager.StageIndex;
+            toolCards[i].color = active ? Accent : unlocked ? new Color(1, 1, 1, .13f) : new Color(1, 1, 1, .065f);
+            toolIcons[i].color = active ? Color.white : unlocked ? new Color(1, 1, 1, .72f) : new Color(1, 1, 1, .28f);
+            toolStates[i].text = active ? "ACTIVE" : unlocked ? "READY" : "LOCKED";
+            toolStates[i].color = active ? new Color(1, 1, 1, .78f) : new Color(1, 1, 1, .32f);
+            toolCards[i].GetComponent<Button>().interactable = unlocked && !manager.IsComplete;
+        }
+
+        if (manager.IsComplete && !completion.activeSelf)
+            completion.SetActive(true);
+    }
+
+    private static string GetInstruction(CleaningTool tool)
+    {
+        switch (tool)
+        {
+            case CleaningTool.Water: return "Drag across the muddy areas";
+            case CleaningTool.Foam: return "Spread a soft layer of foam";
+            case CleaningTool.Brush: return "Slowly scrub until the dirt melts away";
+            case CleaningTool.Rinse: return "Rinse the surface until it shines";
+            case CleaningTool.Dryer: return "Gently dry the restored sneaker";
+            default: return "Restore it at your own pace";
+        }
+    }
+
+    private static Image RoundedPanel(Transform parent, Vector2 anchor, Vector2 size, Color color, float radius)
+    {
+        GameObject go = new GameObject("Panel");
+        go.transform.SetParent(parent, false);
+        RectTransform rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = anchor;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        Image image = go.AddComponent<Image>();
+        image.color = color;
+        return image;
+    }
+
+    private static Text Text(Transform parent, string value, Vector2 anchor, Vector2 size, int fontSize, FontStyle style, Color color)
+    {
+        GameObject go = new GameObject("Label");
+        go.transform.SetParent(parent, false);
+        RectTransform rect = go.AddComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = anchor;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+        Text text = go.AddComponent<Text>();
+        text.text = value;
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = fontSize;
+        text.fontStyle = style;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = color;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        return text;
+    }
+
+    private static Sprite CreateIconSprite(int tool)
+    {
+        const int size = 64;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        Color clear = new Color(1, 1, 1, 0);
+        Color ink = Color.white;
+        Color[] pixels = new Color[size * size];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = clear;
+
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            float px = x - 31.5f;
+            float py = y - 31.5f;
+            bool on = false;
+            float r = Mathf.Sqrt(px * px + py * py);
+
+            switch (tool)
+            {
+                case 0: // water droplet
+                    float dx = px * .9f;
+                    float dy = py + 7f;
+                    on = (dx * dx + dy * dy < 15f * 15f && py < 13f) || (Mathf.Abs(px) < 3f && py > 8f && py < 27f);
+                    break;
+                case 1: // foam bubbles
+                    on = (Mathf.Abs(r - 13f) < 3f) || (Mathf.Abs(Mathf.Sqrt((px + 13) * (px + 13) + (py - 8) * (py - 8)) - 8f) < 3f) || (Mathf.Abs(Mathf.Sqrt((px - 12) * (px - 12) + (py + 9) * (py + 9)) - 6f) < 3f);
+                    break;
+                case 2: // brush
+                    on = (Mathf.Abs(px + py * .7f) < 5f && py > -17f && py < 17f) || (Mathf.Abs(py - 19f) < 5f && Mathf.Abs(px) < 22f);
+                    break;
+                case 3: // rinse spray
+                    on = (Mathf.Abs(px + 17f) < 4f && Mathf.Abs(py) < 20f) || (px > -6f && px < 21f && Mathf.Abs(py - (px * .55f)) < 3f) || (px > -6f && px < 21f && Mathf.Abs(py + (px * .55f)) < 3f);
+                    break;
+                default: // dryer
+                    on = (Mathf.Abs(px + 14f) < 4f && Mathf.Abs(py) < 17f) || (Mathf.Abs(py) < 4f && px > -10f && px < 21f) || (Mathf.Abs(py - 10f) < 3f && px > -4f && px < 20f) || (Mathf.Abs(py + 10f) < 3f && px > -4f && px < 20f);
+                    break;
+            }
+            if (on) pixels[y * size + x] = ink;
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(.5f, .5f), 64f);
+    }
 }
