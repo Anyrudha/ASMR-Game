@@ -13,27 +13,23 @@ public static class InstallSneaker3D
     private const string MaterialPath = "Assets/Resources/Sneakers/SneakerRestoreMaterial.mat";
 
     [InitializeOnLoadMethod]
-    private static void AutoBuildOnEditorLoad()
-    {
-        EditorApplication.delayCall += TryAutomaticBuild;
-    }
+    private static void AutoBuildOnEditorLoad() => EditorApplication.delayCall += TryAutomaticBuild;
 
     [MenuItem("Restore/3D Sneaker/Build Sneaker Prefab")]
-    public static void BuildPrefab()
-    {
-        BuildPrefabInternal(true);
-    }
+    public static void BuildPrefab() => BuildPrefabInternal(true);
 
-    private static void TryAutomaticBuild()
+    internal static void BuildPrefabAutomatic()
     {
         if (EditorApplication.isCompiling || EditorApplication.isUpdating)
         {
-            EditorApplication.delayCall += TryAutomaticBuild;
+            EditorApplication.delayCall += BuildPrefabAutomatic;
             return;
         }
         if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) != null) return;
         BuildPrefabInternal(false);
     }
+
+    private static void TryAutomaticBuild() => BuildPrefabAutomatic();
 
     private static void BuildPrefabInternal(bool showDialog)
     {
@@ -82,7 +78,9 @@ public static class InstallSneaker3D
             renderer.receiveShadows = true;
         }
 
-        instance.AddComponent<MeshDirtSurface>();
+        if (instance.GetComponent<MeshDirtSurface>() == null)
+            instance.AddComponent<MeshDirtSurface>();
+
         bool success = PrefabUtility.SaveAsPrefabAsset(instance, PrefabPath, out _);
         Object.DestroyImmediate(instance);
         AssetDatabase.SaveAssets();
@@ -111,27 +109,10 @@ public sealed class SneakerAssetPostprocessor : AssetPostprocessor
         {
             if (path == "Assets/Art/Sneakers/Sneakers.obj" || path == "Assets/Art/Sneakers/sneaker_diffuse.png")
             {
-                EditorApplication.delayCall += () => InstallSneaker3D.BuildPrefabAutomaticForPostprocess();
+                EditorApplication.delayCall += InstallSneaker3D.BuildPrefabAutomatic;
                 return;
             }
         }
-    }
-}
-
-internal static class InstallSneaker3DExtensions
-{
-    internal static void BuildPrefabAutomaticForPostprocess()
-    {
-        EditorApplication.delayCall += () =>
-        {
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-            {
-                EditorApplication.delayCall += BuildPrefabAutomaticForPostprocess;
-                return;
-            }
-            if (AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/Sneakers/Sneakers.prefab") == null)
-                InstallSneaker3D.BuildPrefab();
-        };
     }
 }
 #endif
