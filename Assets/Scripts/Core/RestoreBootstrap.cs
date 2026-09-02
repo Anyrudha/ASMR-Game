@@ -21,14 +21,16 @@ public sealed class RestoreBootstrap : MonoBehaviour
         {
             GameObject sneaker = Instantiate(prefab);
             sneaker.name = "Restoration Sneaker";
-            sneaker.transform.rotation = Quaternion.identity;
 
-            // Normalize the imported OBJ by its actual renderer bounds rather than
-            // relying on an arbitrary OBJ authoring scale.
+            // Use a calm three-quarter product view instead of looking directly at
+            // the heel/toe. This makes the object read immediately as a sneaker and
+            // leaves broad surfaces visible for the cleaning interaction.
+            sneaker.transform.rotation = Quaternion.Euler(9f, -24f, 0f);
+
             Bounds bounds = CalculateBounds(sneaker);
             float longest = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
             if (longest > 0.0001f)
-                sneaker.transform.localScale *= 5.55f / longest;
+                sneaker.transform.localScale *= 5.15f / longest;
 
             bounds = CalculateBounds(sneaker);
             sneaker.transform.position += new Vector3(-bounds.center.x, -bounds.center.y - 0.05f, -bounds.center.z);
