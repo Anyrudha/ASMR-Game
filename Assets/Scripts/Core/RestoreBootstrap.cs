@@ -13,20 +13,17 @@ public sealed class RestoreBootstrap : MonoBehaviour
     private void CreateWorld()
     {
         Camera camera = CreateCamera();
-
         GameObject layerObject = new GameObject("Dirty Sneaker");
         DirtLayer layer = layerObject.AddComponent<DirtLayer>();
         layerObject.transform.position = new Vector3(0f, -0.15f, 0f);
-        layerObject.transform.localScale = Vector3.one * 1.55f;
+        layerObject.transform.localScale = Vector3.one * 1.42f;
         layer.BuildSneaker();
 
         GameObject managerObject = new GameObject("Restoration Manager");
         RestorationManager manager = managerObject.AddComponent<RestorationManager>();
         manager.Initialise(layer, camera);
-
         TouchInputManager input = managerObject.AddComponent<TouchInputManager>();
-        input.Initialise(manager);
-
+        input.Initialise(manager, camera);
         UIManager.Create(manager);
     }
 
