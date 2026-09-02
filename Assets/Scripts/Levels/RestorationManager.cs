@@ -9,6 +9,7 @@ public sealed class RestorationManager : MonoBehaviour
     public bool IsComplete { get; private set; }
 
     private DirtLayer layer;
+    private MeshDirtSurface meshSurface;
     private Camera targetCamera;
     private int stage;
     private int foamTouches;
@@ -18,8 +19,20 @@ public sealed class RestorationManager : MonoBehaviour
 
     public void Initialise(DirtLayer target, Camera camera)
     {
-        layer = target; targetCamera = camera; stage = 0; foamTouches = 0;
-        CurrentTool = CleaningTool.Water; Progress = 0f; IsComplete = false;
+        layer = target; meshSurface = null; targetCamera = camera;
+        ResetState();
+    }
+
+    public void Initialise(MeshDirtSurface target, Camera camera)
+    {
+        meshSurface = target; layer = null; targetCamera = camera;
+        ResetState();
+    }
+
+    private void ResetState()
+    {
+        stage = 0; foamTouches = 0; CurrentTool = CleaningTool.Water;
+        Progress = 0f; IsComplete = false;
         AudioManager.Create(); HapticManager.Create(); CreateFeedbackParticles();
     }
 
@@ -27,25 +40,52 @@ public sealed class RestorationManager : MonoBehaviour
 
     public void ApplyScreenPosition(Vector2 screenPosition, float intensity)
     {
-        if (IsComplete || layer == null || targetCamera == null) return;
-        Vector3 world = targetCamera.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -targetCamera.transform.position.z));
-        world.z = 0f;
-        Vector2 uv = layer.WorldToUv(world);
-        if (uv.x < 0f || uv.x > 1f || uv.y < 0f || uv.y > 1f) return;
+        if (IsComplete || targetCamera == null) return;
 
         float i = Mathf.Clamp01(intensity);
-        bool changed;
-        switch (CurrentTool)
+        bool changed = false;
+        Vector3 feedbackWorld = Vector3.zero;
+
+        if (meshSurface != null)
         {
-            case CleaningTool.Water: changed = layer.CleanAt(uv, 28f, 0.085f * Mathf.Lerp(0.75f, 1.25f, i)) > 0f; break;
-            case CleaningTool.Foam: foamTouches = Mathf.Min(14, foamTouches + 1); changed = true; break;
-            case CleaningTool.Brush: changed = layer.CleanAt(uv, 22f, 0.30f * Mathf.Lerp(0.7f, 1.35f, i)) > 0f; break;
-            case CleaningTool.Rinse: changed = layer.CleanAt(uv, 30f, 0.17f * Mathf.Lerp(0.8f, 1.2f, i)) > 0f; break;
-            default: changed = layer.CleanAt(uv, 20f, 0.075f * Mathf.Lerp(0.8f, 1.2f, i)) > 0f; break;
+            Ray ray = targetCamera.ScreenPointToRay(screenPosition);
+            if (!Physics.Raycast(ray, out RaycastHit hit, 100f)) return;
+            if (!hit.collider.transform.IsChildOf(meshSurface.transform) && hit.collider.transform != meshSurface.transform) return;
+            feedbackWorld = hit.point;
+            switch (CurrentTool)
+            {
+                case CleaningTool.Water:
+                    changed = meshSurface.CleanAt(hit.textureCoord, 0.065f, 0.075f * Mathf.Lerp(0.75f, 1.25f, i)) > 0f; break;
+                case CleaningTool.Foam:
+                    foamTouches = Mathf.Min(14, foamTouches + 1); changed = true; break;
+                case CleaningTool.Brush:
+                    changed = meshSurface.CleanAt(hit.textureCoord, 0.045f, 0.24f * Mathf.Lerp(0.7f, 1.35f, i)) > 0f; break;
+                case CleaningTool.Rinse:
+                    changed = meshSurface.CleanAt(hit.textureCoord, 0.075f, 0.14f * Mathf.Lerp(0.8f, 1.2f, i)) > 0f; break;
+                default:
+                    changed = meshSurface.CleanAt(hit.textureCoord, 0.055f, 0.07f * Mathf.Lerp(0.8f, 1.2f, i)) > 0f; break;
+            }
         }
+        else if (layer != null)
+        {
+            Vector3 world = targetCamera.ScreenToWorldPoint(new Vector3(screenPosition.x, screenPosition.y, -targetCamera.transform.position.z));
+            world.z = 0f;
+            Vector2 uv = layer.WorldToUv(world);
+            if (uv.x < 0f || uv.x > 1f || uv.y < 0f || uv.y > 1f) return;
+            feedbackWorld = world;
+            switch (CurrentTool)
+            {
+                case CleaningTool.Water: changed = layer.CleanAt(uv, 28f, 0.085f * Mathf.Lerp(0.75f, 1.25f, i)) > 0f; break;
+                case CleaningTool.Foam: foamTouches = Mathf.Min(14, foamTouches + 1); changed = true; break;
+                case CleaningTool.Brush: changed = layer.CleanAt(uv, 22f, 0.30f * Mathf.Lerp(0.7f, 1.35f, i)) > 0f; break;
+                case CleaningTool.Rinse: changed = layer.CleanAt(uv, 30f, 0.17f * Mathf.Lerp(0.8f, 1.2f, i)) > 0f; break;
+                default: changed = layer.CleanAt(uv, 20f, 0.075f * Mathf.Lerp(0.8f, 1.2f, i)) > 0f; break;
+            }
+        }
+        else return;
 
         UpdateProgressAndStage();
-        SpawnFeedback(world, changed, i);
+        SpawnFeedback(feedbackWorld, changed, i);
         if (changed && Time.unscaledTime - lastInteraction > 0.11f)
         {
             HapticManager.Light();
@@ -60,9 +100,11 @@ public sealed class RestorationManager : MonoBehaviour
         if (!IsComplete && (int)tool <= stage) CurrentTool = tool;
     }
 
+    private float SurfaceProgress => meshSurface != null ? meshSurface.Progress : (layer != null ? layer.Progress : 0f);
+
     private void UpdateProgressAndStage()
     {
-        float dirt = layer.Progress;
+        float dirt = SurfaceProgress;
         switch (stage)
         {
             case 0:
@@ -93,7 +135,14 @@ public sealed class RestorationManager : MonoBehaviour
     {
         if (!changed || feedbackParticles == null) return;
         int count = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(1f, 4f, intensity)), 1, 4);
-        var emit = new ParticleSystem.EmitParams { position = world, startSize = CurrentTool == CleaningTool.Brush ? 0.055f : 0.085f, startLifetime = 0.28f, velocity = Vector3.up * (0.12f + intensity * 0.25f), startColor = CurrentTool == CleaningTool.Foam ? Color.white : new Color(0.78f, 0.92f, 1f, 0.8f) };
+        var emit = new ParticleSystem.EmitParams
+        {
+            position = world,
+            startSize = CurrentTool == CleaningTool.Brush ? 0.055f : 0.085f,
+            startLifetime = 0.28f,
+            velocity = Vector3.up * (0.12f + intensity * 0.25f),
+            startColor = CurrentTool == CleaningTool.Foam ? Color.white : new Color(0.78f, 0.92f, 1f, 0.8f)
+        };
         feedbackParticles.Emit(emit, count);
     }
 
