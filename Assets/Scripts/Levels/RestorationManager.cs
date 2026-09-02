@@ -168,7 +168,7 @@ public sealed class RestorationManager : MonoBehaviour
             position = world,
             startSize = CurrentTool == CleaningTool.Brush ? 0.07f : 0.11f,
             startLifetime = 0.3f,
-            startSpeed = 0.25f,
+            velocity = Vector3.up * 0.25f,
             startColor = CurrentTool == CleaningTool.Foam
                 ? Color.white
                 : new Color(0.75f, 0.9f, 1f, 0.85f)
@@ -192,7 +192,6 @@ public sealed class RestorationManager : MonoBehaviour
         var main = feedbackParticles.main;
         main.playOnAwake = false;
         main.startLifetime = 0.3f;
-        main.startSpeed = 0.25f;
         main.startSize = 0.1f;
         var emission = feedbackParticles.emission;
         emission.rateOverTime = 0f;

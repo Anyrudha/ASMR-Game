@@ -86,6 +86,18 @@ public sealed class DirtLayer : MonoBehaviour
     public Vector2 WorldToUv(Vector3 worldPosition)
     {
         Vector3 local = transform.InverseTransformPoint(worldPosition);
+
+        // The SpriteRenderer is measured in world units, while the cleaning
+        // texture uses normalized UV coordinates. Normalize against the actual
+        // sprite bounds instead of assuming the local object is exactly 1x1.
+        if (dirtRenderer != null && dirtRenderer.sprite != null)
+        {
+            Bounds bounds = dirtRenderer.sprite.bounds;
+            float u = Mathf.InverseLerp(bounds.min.x, bounds.max.x, local.x);
+            float v = Mathf.InverseLerp(bounds.min.y, bounds.max.y, local.y);
+            return new Vector2(u, v);
+        }
+
         return new Vector2(local.x + 0.5f, local.y + 0.5f);
     }
 
@@ -232,8 +244,8 @@ public sealed class DirtLayer : MonoBehaviour
         dirtTexture.Apply(false, false);
         dirtRenderer = new GameObject("Dirt Mask").AddComponent<SpriteRenderer>();
         dirtRenderer.transform.SetParent(transform, false);
-        dirtySprite = Sprite.Create(dirtTexture, new Rect(0, 0, textureWidth, textureHeight), new Vector2(0.5f, 0.5f), 100f);
-        dirtRenderer.sprite = dirtySprite;
+        dirtSprite = Sprite.Create(dirtTexture, new Rect(0, 0, textureWidth, textureHeight), new Vector2(0.5f, 0.5f), 100f);
+        dirtRenderer.sprite = dirtSprite;
         dirtRenderer.sortingOrder = 2;
 
         RecalculateInitialDirtyPixels();
